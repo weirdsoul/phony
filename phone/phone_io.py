@@ -60,7 +60,7 @@ try:
       elif age.total_seconds() == 0:
         # The signal state just changed to low, so we are looking
         # at the end of a pulse. Increase digit.
-        current_number = current_number +1
+        current_number = current_number + 1
 
     # Check whether we are still idle.
     idle_state, age = idle_signal.Pump(new_time)
