@@ -32,11 +32,6 @@ LOOP_SLEEP_TIME = 0.005
 PORT_PULSE = 4 # Receives pulses while dialing a digit.
 PORT_IDLE = 17 # Receives dial idle signal.
 
-def newNumberPulseCb(signal, old_state, new_state):
-  if old_state == True:
-    global current_number
-    current_number = current_number + 1
-
 try:
   GPIO.setmode(GPIO.BCM)
 
@@ -46,21 +41,24 @@ try:
   
   current_number = 0
   start_time = datetime.datetime.now()
-  pulse_signal = gpio_signal.GpioSignal(PORT_PULSE, newNumberPulseCb,
-                                        start_time)
+  pulse_signal = gpio_signal.GpioSignal(PORT_PULSE, start_time)
   
   while True:
     new_time = datetime.datetime.now()
 
     # Check whether we have a complete number.
-    pulse, age = pulse_signal.GetCurrentState(new_time)
-    if (age.microseconds > DIGIT_TIMEOUT and pulse == False and
-        current_number != 0):
-      # Enough time has passed. Print the digit.
-      char_out.write('%d' % (current_number % 10))
-      current_number = 0
+    pulse_state, age = pulse_signal.Pump(new_time)    
+    if pulse_state == False:      
+      if age.microseconds > DIGIT_TIMEOUT and current_number != 0:
+        # Enough time has passed without a state change,
+        # so we know the digit is final.
+        char_out.write('%d' % (current_number % 10))
+        current_number = 0
+      elif age.microseconds == 0:
+        # The signal state just changed to low, so we are looking
+        # at the end of a pulse. Increase digit.
+        current_number = current_number +1
 
-    pulse_signal.Pump(new_time)
     time.sleep(LOOP_SLEEP_TIME)
 
 finally:
