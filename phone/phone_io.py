@@ -61,10 +61,15 @@ try:
         # The signal state just changed to low, so we are looking
         # at the end of a pulse. Increase digit.
         current_number = current_number + 1
+        char_out.write('p')
 
     # Check whether we are still idle.
     idle_state, age = idle_signal.Pump(new_time)
-    
+    if age.total_seconds() == 0:
+      if idle_state == True:
+        char_out.write('e')
+      else:
+        char_out.write('s')
 
     time.sleep(LOOP_SLEEP_TIME)
 
