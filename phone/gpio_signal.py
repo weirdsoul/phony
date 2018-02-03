@@ -6,8 +6,8 @@ import datetime
 import time
 import RPi.GPIO as GPIO
 
-# Minimum distance between two edges in microseconds.
-MIN_SIGNAL_DIST = 1000*20
+# Minimum distance between two edges in seconds.
+MIN_SIGNAL_DIST = 0.02
 
 class GpioSignal:
   """ GpioSignal manages a single GPIO port.
@@ -48,7 +48,7 @@ class GpioSignal:
     time_diff = current_time - self.previous_state_ts_
     current_state = GPIO.input(self.gpio_port_)        
     if (self.previous_state_ != current_state and
-        time_diff.microseconds > MIN_SIGNAL_DIST):
+        time_diff.total_seconds() > MIN_SIGNAL_DIST):
       self.previous_state_ = current_state
       self.previous_state_ts_ = current_time
     return self.previous_state_, current_time - self.previous_state_ts_

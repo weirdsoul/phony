@@ -21,9 +21,9 @@ import RPi.GPIO as GPIO
 
 import gpio_signal
 
-# After DIGIT_TIMEOUT microseconds  of being in low state, we
+# After DIGIT_TIMEOUT seconds of being in low state, we
 # consider one digit to be done.
-DIGIT_TIMEOUT = 1000*500
+DIGIT_TIMEOUT = 0.5
 
 # Sleep time in seconds between state polling iterations.
 LOOP_SLEEP_TIME = 0.005
@@ -41,23 +41,30 @@ try:
   
   current_number = 0
   start_time = datetime.datetime.now()
+  
   pulse_signal = gpio_signal.GpioSignal(PORT_PULSE, start_time)
+  idle_signal = gpio_signal.GpioSignal(PORT_IDLE, start_time)
   
   while True:
     new_time = datetime.datetime.now()
 
-    # Check whether we have a complete number.
+    # Check whether we have a complete number and update it upon
+    # receiving a new pulse.
     pulse_state, age = pulse_signal.Pump(new_time)    
     if pulse_state == False:      
-      if age.microseconds > DIGIT_TIMEOUT and current_number != 0:
+      if age.total_seconds() > DIGIT_TIMEOUT and current_number != 0:
         # Enough time has passed without a state change,
         # so we know the digit is final.
         char_out.write('%d' % (current_number % 10))
         current_number = 0
-      elif age.microseconds == 0:
+      elif age.total_seconds() == 0:
         # The signal state just changed to low, so we are looking
         # at the end of a pulse. Increase digit.
         current_number = current_number +1
+
+    # Check whether we are still idle.
+    idle_state, age = idle_signal.Pump(new_time)
+    
 
     time.sleep(LOOP_SLEEP_TIME)
 
