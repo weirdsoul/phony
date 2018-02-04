@@ -11,6 +11,12 @@
 #  'e': Dial has reached idle position
 #  'p': A single dial pulse has been received
 #
+# While l and d can always be triggered, the other outputs
+# form a sequence matching this regular expression:
+# sp*e[0-9]?
+# If you get any other reading from this routine after filtering
+# out 'l' and 'd', you are probably dealing with a hardware problem.
+#
 # coding=utf-8
 
 import datetime
@@ -31,6 +37,7 @@ LOOP_SLEEP_TIME = 0.01
 # Ports used for various purposes:
 PORT_PULSE = 4 # Receives pulses while dialing a digit.
 PORT_IDLE = 17 # Receives dial idle signal.
+PORT_HOOK = 27 # Receices the hook signal.
 
 try:
   GPIO.setmode(GPIO.BCM)
@@ -44,6 +51,7 @@ try:
   
   pulse_signal = gpio_signal.GpioSignal(PORT_PULSE, start_time)
   idle_signal = gpio_signal.GpioSignal(PORT_IDLE, start_time)
+  hook_signal = gpio_signal.GpioSignal(PORT_HOOK, start_time)
   
   while True:
     new_time = datetime.datetime.now()
@@ -73,6 +81,14 @@ try:
           current_number = 0
       else:
         char_out.write('s')
+
+    # Check hook status.
+    hook_state, age = hook_signal.Pump(new_time)
+    if age.total_seconds() == 0:
+      if hook_state == False:
+        char_out.write('d')
+      else:
+        char_out.write('l')    
 
     time.sleep(LOOP_SLEEP_TIME)
 
