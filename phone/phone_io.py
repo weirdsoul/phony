@@ -24,6 +24,7 @@
 # coding=utf-8
 
 import datetime
+import fcntl
 import os
 import sys
 import time
@@ -86,9 +87,12 @@ try:
   GPIO.setup(PORT_RING_RIGHT, GPIO.OUT)
 
   # Create file objects without buffering, so all I/O we produce
-  # or receive is effective immediately.
+  # or receive is effective immediately. Also set char_in to non-blocking,
+  # so we can poll it just like the other inputs.
   char_out = os.fdopen(sys.stdout.fileno(), 'wb', 0)
   char_in = os.fdopen(sys.stdin.fileno(), 'rb', 0)
+  char_in_flags = fcntl.fcntl(sys.stdin.fileno(), fcntl.F_GETFL)
+  fcntl.fcntl(sys.stdin.fileno(), fcntl.F_SETFL, char_in_flags | os.O_NONBLOCK)
   
   current_number = 0
   start_time = datetime.datetime.now()
@@ -99,11 +103,29 @@ try:
 
   # Start with the bell off.
   previous_bell_state = 0
+
+  # Bell is not rining by default.
+  bell_ringing = False
   
   while True:
     new_time = datetime.datetime.now()
 
-    new_bell_state = GetRingState(new_time - start_time)
+    input = []
+    try:
+      input = char_in.read()
+    except:
+      pass
+    for i in input:
+      if i == 's':
+        bell_ringing = True
+      elif i == 'e':
+        bell_ringing = False
+
+    if bell_ringing:     
+      new_bell_state = GetRingState(new_time - start_time)
+    else:
+      new_bell_state = 0
+      
     if new_bell_state != previous_bell_state:
       previous_bell_state = new_bell_state
 
