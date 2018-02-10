@@ -141,9 +141,9 @@ class Phony:
 
 def main():
   config = configparser.ConfigParser()  
-  phony = Phony(config['DEFAULT'].['Username'],
-                config['DEFAULT'].['Password'],
-                config['DEFAULT'].['Gateway'])
+  phony = Phony(config['DEFAULT']['Username'],
+                config['DEFAULT']['Password'],
+                config['DEFAULT']['Gateway'])
   phony.Run()
 
 main()
