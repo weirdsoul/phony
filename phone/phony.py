@@ -19,16 +19,11 @@ class Phony:
   ''' Construct Phony instance.
 
     Args:
-      username: The user name on the SIP gateway.
-      password: The password for username.
-      sip_gateway: Gateway server to be used.
+      config: config file as an instance of ConfigParser
   '''
-  def __init__(self, username, password, sip_gateway):
+  def __init__(self, config):
     self.quit_ = False
-    
-    self.username_ = username
-    self.password_ = password
-    self.sip_gateway_ = sip_gateway
+    self.config_ = config
 
     logging.basicConfig(level=logging.INFO)
 
@@ -55,7 +50,7 @@ class Phony:
           logging.info('Dialing outbound number %s' % self.current_number_)
           self.current_call_ = self.core_.invite(
             '{number}@{sip_gateway}'.format(number=self.current_number_,
-                                            sip_gateway=self.sip_gateway_))
+                                            sip_gateway=self.standard_gateway_))
           
           self.current_number_ = ''
           self.current_number_ts_ = datetime.datetime.now()
@@ -75,21 +70,38 @@ class Phony:
     self.core_.video_display_enabled = False
     # STUN server should be independent of provider, so we
     # hardcode it here.
-    self.core_.nat_policy.stun_server = 'stun.linphone.org'
+    # self.core_.nat_policy.stun_server = 'stun.linphone.org'
+    self.core_.nat_policy.stun_server = 'stun.arcor.de'
     self.core_.nat_policy.ice_enabled = True
 
-    proxy_config = self.core_.create_proxy_config()
-    proxy_config.identity_address = self.core_.create_address(
-      'sip:{username}@{sip_gateway}'.format(username=self.username_,
-                                            sip_gateway=self.sip_gateway_))
-    proxy_config.server_addr = 'sip:{sip_gateway}'.format(
-      sip_gateway=self.sip_gateway_)
-    proxy_config.register_enabled = True
-    self.core_.add_proxy_config(proxy_config)
+    self.standard_gateway_ = ''
+    for provider in self.config_.sections():
+      username = self.config_.get(provider, 'Username')
+      password = self.config_.get(provider, 'Password')
+      sip_gateway = self.config_.get(provider, 'Gateway')
+      is_default = False
+      try:
+        is_default = self.config_.getboolean(provider, 'default')
+      except:
+        pass
+        
+      proxy_config = self.core_.create_proxy_config()
+      proxy_config.identity_address = self.core_.create_address(
+      'sip:{username}@{sip_gateway}'.format(username=username,
+                                            sip_gateway=sip_gateway))
+      
+      proxy_config.server_addr = 'sip:{sip_gateway}'.format(sip_gateway=sip_gateway)
+      proxy_config.register_enabled = True
+      self.core_.add_proxy_config(proxy_config)
 
-    auth_info = self.core_.create_auth_info(self.username_, None, self.password_,
-                                            None, None, self.sip_gateway_)
-    self.core_.add_auth_info(auth_info)
+      if is_default and not self.standard_gateway_:
+        # If we have a default, use it. Otherwise, just pick the first one.
+        self.core_.default_proxy_config = proxy_config
+        self.standard_gateway_ = sip_gateway
+
+      auth_info = self.core_.create_auth_info(username, None, password,
+                                              None, None, sip_gateway)
+      self.core_.add_auth_info(auth_info)
 
     # No prospective call yet.
     self.current_call_ = None
@@ -188,9 +200,7 @@ class Phony:
 def main():
   config = ConfigParser.ConfigParser()
   config.read('/etc/phony.conf')
-  phony = Phony(config.get('DEFAULT', 'Username'),
-                config.get('DEFAULT', 'Password'),
-                config.get('DEFAULT', 'Gateway'))
+  phony = Phony(config)
   phony.Run()
 
 main()
