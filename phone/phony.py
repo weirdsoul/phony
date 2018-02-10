@@ -4,7 +4,7 @@
 # the linphone Python wrapper library and communicates
 # with the hardware through a subprocess.
 
-import configparser
+import ConfigParser
 import fcntl
 import linphone
 import logging
@@ -140,10 +140,11 @@ class Phony:
 
 
 def main():
-  config = configparser.ConfigParser()  
-  phony = Phony(config['DEFAULT']['Username'],
-                config['DEFAULT']['Password'],
-                config['DEFAULT']['Gateway'])
+  config = ConfigParser.ConfigParser()
+  config.read('phony.conf')
+  phony = Phony(config.get('DEFAULT', 'Username'),
+                config.get('DEFAULT', 'Password'),
+                config.get('DEFAULT', 'Gateway'))
   phony.Run()
 
 main()
