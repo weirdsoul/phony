@@ -166,7 +166,7 @@ try:
     # Check hook status.
     hook_state, age = hook_signal.Pump(new_time)
     if age.total_seconds() == 0:
-      if hook_state == False:
+      if hook_state == True:
         char_out.write('d')
       else:
         char_out.write('l')    
