@@ -141,7 +141,7 @@ class Phony:
 
 def main():
   config = ConfigParser.ConfigParser()
-  config.read('phony.conf')
+  config.read('/etc/phony.conf')
   phony = Phony(config.get('DEFAULT', 'Username'),
                 config.get('DEFAULT', 'Password'),
                 config.get('DEFAULT', 'Gateway'))
