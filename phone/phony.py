@@ -11,6 +11,7 @@ import logging
 import os
 import signal
 import subprocess
+import sys
 import time
 
 class Phony:
@@ -82,7 +83,12 @@ class Phony:
 
 
   def initPhoneIO(self):
-    self.phone_IO_ = subprocess.Popen(['./phone_io.py'],
+    abs_path = os.path.abspath(sys.argv[0])
+    io_binary = os.path.join(
+      os.path.dirname(abs_path),
+      'phone_io.py')
+    print('io binary %s' % io_binary)
+    self.phone_IO_ = subprocess.Popen([io_binary],
                                       stdin=subprocess.PIPE,
                                       stdout=subprocess.PIPE)
     self.phone_controls_ = os.fdopen(self.phone_IO_.stdout.fileno(), 'rb', 0)
