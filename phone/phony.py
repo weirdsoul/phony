@@ -5,6 +5,7 @@
 # with the hardware through a subprocess.
 
 import ConfigParser
+import datetime
 import fcntl
 import linphone
 import logging
@@ -47,6 +48,18 @@ class Phony:
           self.processUserInput(i)
       except:
         pass
+
+      time_since_last_digit = datetime.datetime.now() - self.current_number_ts_
+      if (self.current_number_ and
+          time_since_last_digit.total_seconds() > 2 and not self.dialing_):
+          logging.info('Dialing outbound number %s' % self.current_number_)
+          self.current_call_ = self.core_.invite(
+            '{number}@{sip_gateway}'.format(number=self.current_number_,
+                                            sip_gateway=self.sip_gateway_))
+          
+          self.current_number_ = ''
+          self.current_number_ts_ = datetime.datetime.now()
+      
       time.sleep(0.03)
     
   def initLinphone(self):      
@@ -79,7 +92,7 @@ class Phony:
     self.core_.add_auth_info(auth_info)
 
     # No prospective call yet.
-    self.call_ = None
+    self.current_call_ = None
 
 
   def initPhoneIO(self):
@@ -94,6 +107,14 @@ class Phony:
     self.phone_controls_ = os.fdopen(self.phone_IO_.stdout.fileno(), 'rb', 0)
     flags = fcntl.fcntl(self.phone_IO_.stdout.fileno(), fcntl.F_GETFL)
     fcntl.fcntl(self.phone_IO_.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
+
+    # Will track the status of the hook, so we know when a number can
+    # be dialed etc.
+    self.unhooked_ = False
+    # Becomes true while the dial is not in its idle position.
+    self.dialing_ = False
+    self.current_number_ = ''
+    self.current_number_ts_ = datetime.datetime.now()
 
   ''' Linphone callback updating call state.
 
@@ -134,15 +155,34 @@ class Phony:
     self.quit_ = True
 
   def processUserInput(self, input):
-    if self.current_call_:
-      if input == 'l':
+    if input == 'l':
+      self.unhooked_ = True
+      if self.current_call_:
         params = self.core_.create_call_params(self.current_call_)
         self.core_.accept_call_with_params(self.current_call_, params)
-      elif input == 'd':
+      
+    elif input == 'd':
+      self.unhooked_ = False
+      # Reset any (partial) phone number that may have been dialed.
+      self.current_number_ = ''
+      self.current_number_ts_ = datetime.datetime.now()
+      if self.current_call_:
         # Dropping the fork will terminate all calls. We don't want
         # any nasty surprises with connections being kept open in the
         # background.
         self.core_.terminate_all_calls()
+
+    elif input == 's':
+      self.dialing_ = True
+
+    elif input == 'e':
+      self.dialing_ = False
+
+    elif str.isdigit(input) and self.unhooked_:
+      # A new digit has been completed and the phone is unhooked.
+      # Add it to the current phone number and update the timestamp.
+      self.current_number_ = self.current_number_ + input
+      self.current_number_ts_ = datetime.datetime.now()
 
 
 def main():
