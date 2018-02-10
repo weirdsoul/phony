@@ -70,8 +70,7 @@ class Phony:
     self.core_.video_display_enabled = False
     # STUN server should be independent of provider, so we
     # hardcode it here.
-    # self.core_.nat_policy.stun_server = 'stun.linphone.org'
-    self.core_.nat_policy.stun_server = 'stun.arcor.de'
+    self.core_.nat_policy.stun_server = 'stun.linphone.org'
     self.core_.nat_policy.ice_enabled = True
 
     self.standard_gateway_ = ''
