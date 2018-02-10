@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+#
 # Low level I/O for phone hardware.
 #
 # This daemon essentially produces status updates on stdout,
