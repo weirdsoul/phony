@@ -54,7 +54,10 @@ class Phony:
           
           self.current_number_ = ''
           self.current_number_ts_ = datetime.datetime.now()
-      
+
+      # Keep active dial tone going, but don't start a new one.
+      self.processDialTone(False)
+                
       time.sleep(0.03)
     
   def initLinphone(self):      
@@ -127,6 +130,8 @@ class Phony:
     # Will track the status of the hook, so we know when a number can
     # be dialed etc.
     self.unhooked_ = False
+    # Don't play dial tone right now.
+    self.dial_tone_ = None
     # Becomes true while the dial is not in its idle position.
     self.dialing_ = False
     self.current_number_ = ''
@@ -170,15 +175,32 @@ class Phony:
     self.phone_IO_.send_signal(signal)
     self.quit_ = True
 
+  def processDialTone(self, start_playing):
+    current = datetime.datetime.now()
+    diff = None
+    if self.dial_tone_:
+      diff = current - self.dial_tone_
+    # TODO(aeckleder): This is very specific to the dial tone we use.
+    # I'm sure we can do better.
+    if start_playing or (diff and diff.total_seconds() > 1):
+        self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
+        self.dial_tone_ = current
+
   def processUserInput(self, input):
     if input == 'l':
-      self.unhooked_ = True
+      self.unhooked_ = True      
       if self.current_call_:
+        # An incoming call is already waiting. Accept it.
         params = self.core_.create_call_params(self.current_call_)
         self.core_.accept_call_with_params(self.current_call_, params)
+      else:        
+        # No incoming call. Play dial tone.
+        self.processDialTone(True)
       
     elif input == 'd':
       self.unhooked_ = False
+      # Stop any dial tone that may be playing.
+      self.dial_tone_ = None
       # Reset any (partial) phone number that may have been dialed.
       self.current_number_ = ''
       self.current_number_ts_ = datetime.datetime.now()
@@ -190,6 +212,8 @@ class Phony:
 
     elif input == 's':
       self.dialing_ = True
+      # Stop any dial tone that may be playing.
+      self.dial_tone_ = None
 
     elif input == 'e':
       self.dialing_ = False
