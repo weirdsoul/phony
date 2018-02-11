@@ -73,6 +73,11 @@ class Phony:
     self.core_.nat_policy.stun_server = 'stun.linphone.org'
     self.core_.nat_policy.ice_enabled = True
 
+    # Manually configure ringback tone, so we can be sure that
+    # it is found.
+    self.core_.remote_ringback_tone = '/home/pi/coding/phone/remote_ringback.wav'
+    self.core_.ringback = '/home/pi/coding/phone/ringback.wav'
+    
     self.standard_gateway_ = ''
     for provider in self.config_.sections():
       username = self.config_.get(provider, 'Username')
