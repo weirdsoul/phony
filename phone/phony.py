@@ -16,14 +16,14 @@ import sys
 import time
 
 class Phony:
-  ''' Construct Phony instance.
+  def __init__(self, username, password, sip_gateway):
+    ''' Construct Phony instance.
 
     Args:
       username: The user name on the SIP gateway.
       password: The password for username.
       sip_gateway: Gateway server to be used.
-  '''
-  def __init__(self, username, password, sip_gateway):
+    '''
     self.quit_ = False
     
     self.username_ = username
@@ -37,8 +37,8 @@ class Phony:
     self.initLinphone()
     self.initPhoneIO()
 
-  ''' Run executes the main loop until quit. '''
   def Run(self):
+    ''' Run executes the main loop until quit. '''
     while not self.quit_:
       self.core_.iterate()
       try:
@@ -116,15 +116,15 @@ class Phony:
     self.current_number_ = ''
     self.current_number_ts_ = datetime.datetime.now()
 
-  ''' Linphone callback updating call state.
+  def call_state_changed(self, core, call, state, message):
+    ''' Linphone callback updating call state.
 
     Args:
       core: The linphone core instance.
       call: Details about a call.
       state: The new state.
       message: Message received.
-  '''
-  def call_state_changed(self, core, call, state, message):
+    '''
     # Bell management.
     if state == linphone.CallState.IncomingReceived:
       # Ring the bell.
