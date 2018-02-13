@@ -18,11 +18,12 @@ import time
 
 # The following defines phone states:
 PS_READY = 0           # The phone is idle and ready to be used.
-PS_DIALING = 1         # The phone is in dialing mode.
-PS_REMOTE_RINGING = 2  # The remote side is ringing.
-PS_BUSY = 3            # The phone is signalling busy / error.
-PS_RINGING = 4         # The phone is ringing.
-PS_TALKING = 5         # The phone is connected to the remote.
+PS_DIAL_TONE = 1       # The phone is ready to dial (dial tone).
+PS_DIALING = 2         # The phone is in dialing mode.
+PS_REMOTE_RINGING = 3  # The remote side is ringing.
+PS_BUSY = 4            # The phone is signalling busy / error.
+PS_RINGING = 5         # The phone is ringing.
+PS_TALKING = 6         # The phone is connected to the remote.
 
 # Note that in addition to the symbols produced by phone_io.py,
 # we introduce a few more symbols to drive our state machine.
@@ -44,13 +45,16 @@ class Phony:
 
     self.phone_state_ = phone_state.PhoneState(PS_READY,
       # Possible state transitions and their triggers.
-      {('l', PS_READY): PS_DIALING,   # Lift handset.
+      {('l', PS_READY): PS_DIAL_TONE,   # Lift handset.
        ('l', PS_RINGING): PS_TALKING,
        
-       ('d', PS_DIALING): PS_READY,   # Drop handset.
+       ('d', PS_DIAL_TONE): PS_READY,  # Drop handset.
+       ('d', PS_DIALING): PS_READY,
        ('d', PS_REMOTE_RINGING): PS_READY,
        ('d', PS_BUSY): PS_READY,
        ('d', PS_TALKING): PS_READY,
+
+       ('s', PS_DIAL_TONE): PS_DIALING, # Dial moved from idle.
 
        ('a', PS_READY): PS_RINGING,  # Incoming call.
        ('a', PS_REMOTE_RINGING): PS_TALKING,
