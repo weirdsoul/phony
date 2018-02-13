@@ -3,6 +3,8 @@
 # A simple state machine supporting callbacks for state changes.
 #
 
+import logging
+
 class PhoneState:
   ''' PhoneState is a simple state machine. It is configured with
     - a set of states
@@ -39,6 +41,9 @@ class PhoneState:
       # combination of input and symbol, we just fall through with
       # a KeyError. No point in calling any callbacks then.
       self.current_state_ = self.transitions_[(input,previous_state)]
+      logging.info('TR: ({input}, {prev}): {next}'.format(
+        input=input, prev=previous_state, next=self.current_state_))
+
       callbacks = self.callbacks_[(previous_state, self.current_state_)]
       for c in callbacks:
         c(previous_state, self.current_state_)
@@ -46,4 +51,8 @@ class PhoneState:
       # Simply fall through if either we don't have a state transition
       # or a list of callbacks. This is not an error.
       pass
+
+  def GetCurrentState(self):
+    ''' GetCurrentState returns the current state of the state machine.'''
+    return self.current_state_
 
