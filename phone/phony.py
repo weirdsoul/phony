@@ -187,7 +187,9 @@ class Phony:
       message: Message received.
     '''
 
-    if state == linphone.CallState.IncomingReceived:
+
+    if state in [linphone.CallState.IncomingReceived,
+                 linphone.CallState.CallConnected]:
       # Update state machine to say we are seeing an
       # incoming call.
       self.phone_state_.ProcessInput('a')
