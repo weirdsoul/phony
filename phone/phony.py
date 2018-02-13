@@ -63,9 +63,18 @@ class Phony:
        ('c', PS_RINGING): PS_READY,
        ('c', PS_TALKING): PS_BUSY,
 
-       ('o', PS_DIALING): PS_REMOTE_RINGING},
+       ('o', PS_DIALING): PS_REMOTE_RINGING},{})
+    '''
       # Callbacks triggered by state transitions.
-      {})
+      {(PS_READY, PS_DIAL_TONE): self.transReadyToDialTone,
+       (PS_READY, PS_RINGING): self.transReadyToRinging,
+
+       (PS_DIAL_TONE, PS_READY): self.transDialToneToReady,
+       (PS_DIAL_TONE, PS_DIALING): self.transDialToneToDialing,
+
+       (PS_DIALING, PS_READY): self.transDialingToReady,
+       (PS_DIALING, PS_REMOTE_RINGING): self.transDialingToRemoteRinging})
+    '''
     
     logging.basicConfig(level=logging.INFO)
 
@@ -226,7 +235,7 @@ class Phony:
     # Just forward to the appropriate method of the logging
     # framework.
     method = getattr(logging, level)
-    # method(msg)
+    method(msg)
 
   def signal_handler(self, signal, frame):
     self.core_.terminate_all_calls()
