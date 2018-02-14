@@ -63,8 +63,10 @@ class Phony:
        ('c', PS_RINGING): PS_READY,
        ('c', PS_TALKING): PS_BUSY,
 
-       ('o', PS_DIALING): PS_REMOTE_RINGING},{})
+       ('o', PS_DIALING): PS_REMOTE_RINGING},
+      {(PS_READY, PS_DIAL_TONE): [self.startDialTone]})
     '''
+      # TODO(aeckleder): Many state transitions left to model.
       # Callbacks triggered by state transitions.
       {(PS_READY, PS_DIAL_TONE): self.transReadyToDialTone,
        (PS_READY, PS_RINGING): self.transReadyToRinging,
@@ -109,7 +111,8 @@ class Phony:
         self.current_number_ts_ = datetime.datetime.now()
 
       # Keep active dial tone going, but don't start a new one.
-      self.processDialTone(False)
+      if self.phone_state_.GetCurrentState() == PS_DIAL_TONE:
+        self.processDialTone(False)
                 
       time.sleep(0.03)
     
@@ -253,6 +256,10 @@ class Phony:
         self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
         self.dial_tone_ = current
 
+  def startDialTone(self, previous_state, next_state):
+    ''' Start playing the dial tone.'''
+    self.processDialTone(True)        
+
   def processUserInput(self, input):
     # Keep the state machine up to date.
     self.phone_state_.ProcessInput(input)
@@ -262,14 +269,9 @@ class Phony:
         # An incoming call is already waiting. Accept it.
         params = self.core_.create_call_params(self.current_call_)
         self.core_.accept_call_with_params(self.current_call_, params)
-      else:        
-        # No incoming call. Play dial tone.
-        self.processDialTone(True)
       
     elif input == 'd':
       self.unhooked_ = False
-      # Stop any dial tone that may be playing.
-      self.dial_tone_ = None
       # Reset any (partial) phone number that may have been dialed.
       self.current_number_ = ''
       self.current_number_ts_ = datetime.datetime.now()
@@ -281,8 +283,6 @@ class Phony:
 
     elif input == 's':
       self.dialing_ = True
-      # Stop any dial tone that may be playing.
-      self.dial_tone_ = None
 
     elif input == 'e':
       self.dialing_ = False
