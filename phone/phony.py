@@ -64,11 +64,14 @@ class Phony:
        ('c', PS_TALKING): PS_BUSY,
 
        ('o', PS_DIALING): PS_REMOTE_RINGING},
-      {(PS_READY, PS_DIAL_TONE): [self.startDialTone]})
+      {(PS_READY, PS_DIAL_TONE): [self.startDialTone],
+       (PS_READY, PS_RINGING): [self.startBell],
+       (PS_RINGING, PS_TALKING): [self.stopBell],
+       (PS_RINGING, PS_READY): [self.stopBell]       
+      })
     '''
       # TODO(aeckleder): Many state transitions left to model.
       # Callbacks triggered by state transitions.
-      {(PS_READY, PS_DIAL_TONE): self.transReadyToDialTone,
        (PS_READY, PS_RINGING): self.transReadyToRinging,
 
        (PS_DIAL_TONE, PS_READY): self.transDialToneToReady,
@@ -216,21 +219,13 @@ class Phony:
       # cancelled the call.
       self.phone_state_.ProcessInput('c')
     
-    # Bell management.
+    # Call object management.
     if state == linphone.CallState.IncomingReceived:
-      # Ring the bell.
-      self.phone_IO_.stdin.write('s')
       # Remember the call, so we can accept or decline it.
       self.current_call_ = call
     elif state in [linphone.CallState.CallEnd,
-                   linphone.CallState.CallError,
-                   linphone.CallState.CallConnected]:
-      # Stop the bell.
-      self.phone_IO_.stdin.write('e')
-
-    # Call object management.
-    if state in [linphone.CallState.CallEnd,
                  linphone.CallState.CallError]:
+      # Clear the call object. We no longer need it.
       self.current_call_ = None
   
 
@@ -260,6 +255,14 @@ class Phony:
     ''' Start playing the dial tone.'''
     self.processDialTone(True)        
 
+  def startBell(self, previous_state, next_state):
+    ''' Start ringing the bell.'''
+    self.phone_IO_.stdin.write('s')
+
+  def stopBell(self, previous_state, next_state):
+    ''' Stop ringing the bell.'''
+    self.phone_IO_.stdin.write('e')
+        
   def processUserInput(self, input):
     # Keep the state machine up to date.
     self.phone_state_.ProcessInput(input)
