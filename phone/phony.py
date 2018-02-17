@@ -16,14 +16,19 @@ import subprocess
 import sys
 import time
 
+# The dial timeout determines the number of seconds to wait
+# until a number is presumed to be complete.
+DIAL_TIMEOUT = 2
+
 # The following defines phone states:
 PS_READY = 0           # The phone is idle and ready to be used.
 PS_DIAL_TONE = 1       # The phone is ready to dial (dial tone).
-PS_DIALING = 2         # The phone is in dialing mode.
-PS_REMOTE_RINGING = 3  # The remote side is ringing.
-PS_BUSY = 4            # The phone is signalling busy / error.
-PS_RINGING = 5         # The phone is ringing.
-PS_TALKING = 6         # The phone is connected to the remote.
+PS_DIAL_MOVING = 2     # The phone dial is moving.
+PS_DIALING = 3         # The phone is in dialing mode.
+PS_REMOTE_RINGING = 4  # The remote side is ringing.
+PS_BUSY = 5            # The phone is signalling busy / error.
+PS_RINGING = 6         # The phone is ringing.
+PS_TALKING = 7         # The phone is connected to the remote.
 
 # Note that in addition to the symbols produced by phone_io.py,
 # we introduce a few more symbols to drive our state machine.
@@ -50,11 +55,16 @@ class Phony:
        
        ('d', PS_DIAL_TONE): PS_READY,  # Drop handset.
        ('d', PS_DIALING): PS_READY,
+       ('d', PS_DIAL_MOVING): PS_READY,
        ('d', PS_REMOTE_RINGING): PS_READY,
        ('d', PS_BUSY): PS_READY,
        ('d', PS_TALKING): PS_READY,
 
-       ('s', PS_DIAL_TONE): PS_DIALING, # Dial moved from idle.
+       ('s', PS_DIAL_TONE): PS_DIAL_MOVING, # Dial moved from idle.
+       ('s', PS_DIALING): PS_DIAL_MOVING,
+
+       ('1234567890', # Any digit marking the end of a dial cycle.
+        PS_DIAL_MOVING): PS_DIALING, # Dial produced a digit.
 
        ('a', PS_READY): PS_RINGING,  # Incoming call.
        ('a', PS_REMOTE_RINGING): PS_TALKING,
@@ -66,7 +76,8 @@ class Phony:
        ('o', PS_DIALING): PS_REMOTE_RINGING},
       {(PS_READY, PS_DIAL_TONE): [self.startDialTone],
        (PS_READY, PS_RINGING): [self.startBell],
-       (PS_DIAL_TONE, PS_DIALING): [self.startDialing],
+       (PS_DIAL_TONE, PS_DIAL_MOVING): [self.startDialing],
+       (PS_DIAL_MOVING, PS_DIALING): [self.processDigit],
        (PS_DIALING, PS_REMOTE_RINGING): [self.dialNumber],
        (PS_REMOTE_RINGING, PS_READY): [self.cancelCall],
        (PS_RINGING, PS_TALKING): [self.stopBell,
@@ -86,23 +97,26 @@ class Phony:
     ''' Run executes the main loop until quit. '''
     while not self.quit_:
       self.core_.iterate()
+      input_seq = ''
       try:
         # See if the user used a control of the phone
         input_seq = self.phone_controls_.read()
-        for i in input_seq:
-          self.processUserInput(i)
       except:
         pass
+      for i in input_seq:
+        # Keep the state machine up to date.
+        self.phone_state_.ProcessInput(i)
 
-      time_since_last_digit = datetime.datetime.now() - self.current_number_ts_
-      if (self.current_number_ and
-          time_since_last_digit.total_seconds() > 2 and
-          not self.digit_in_progress_):
-        # Update state machine to say we are done dialing.
-        self.phone_state_.ProcessInput('o')
+      # Dialing mode has a timeout. We don't model timeouts in our state machine,
+      # so we have to keep track of time manually here.
+      if self.phone_state_.GetCurrentState() == PS_DIALING:
+        time_since_last_digit = datetime.datetime.now() - self.current_number_ts_
+        if time_since_last_digit.total_seconds() > DIAL_TIMEOUT:
+          # Update state machine to say we are done dialing.
+          self.phone_state_.ProcessInput('o')
 
-      # Keep active dial tone going, but don't start a new one.
-      if self.phone_state_.GetCurrentState() == PS_DIAL_TONE:
+      elif self.phone_state_.GetCurrentState() == PS_DIAL_TONE:
+        # Keep active dial tone going, but don't start a new one.
         self.processDialTone(False)
                 
       time.sleep(0.03)
@@ -174,13 +188,6 @@ class Phony:
     flags = fcntl.fcntl(self.phone_IO_.stdout.fileno(), fcntl.F_GETFL)
     fcntl.fcntl(self.phone_IO_.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-    # Don't play dial tone right now.
-    self.dial_tone_ = None
-    # Becomes true while the dial is not in its idle position.
-    self.digit_in_progress_ = False
-    self.current_number_ = ''
-    self.current_number_ts_ = datetime.datetime.now()
-
   def call_state_changed(self, core, call, state, message):
     ''' Linphone callback updating call state.
 
@@ -225,12 +232,13 @@ class Phony:
 
   def processDialTone(self, start_playing):
     current = datetime.datetime.now()
-    diff = None
-    if self.dial_tone_:
-      diff = current - self.dial_tone_
+    if start_playing:
+      self.dial_tone_ = current
+
+    diff = current - self.dial_tone_
     # TODO(aeckleder): This is very specific to the dial tone we use.
     # I'm sure we can do better.
-    if start_playing or (diff and diff.total_seconds() > 1):
+    if start_playing or diff.total_seconds() > 1:
         self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
         self.dial_tone_ = current
 
@@ -273,25 +281,13 @@ class Phony:
       params = self.core_.create_call_params(self.current_call_)
       self.core_.accept_call_with_params(self.current_call_, params)
     else:
-      logging.warning('acceptCall in wrong state ignored.')      
+      logging.warning('acceptCall in wrong state ignored.')
 
-  def processUserInput(self, input):
-    # Keep the state machine up to date.
-    self.phone_state_.ProcessInput(input)
-
-    # We don't model this as an extra state in the state machine,
-    # because this would really make the state machine more
-    # complex for no good reason. 
-    if input == 's':
-      self.digit_in_progress_ = True
-    elif input == 'e':
-      self.digit_in_progress_ = False
-
-    elif str.isdigit(input):
-      # A new digit has been completed.
-      # Add it to the current phone number and update the timestamp.
-      self.current_number_ = self.current_number_ + input
-      self.current_number_ts_ = datetime.datetime.now()
+  def processDigit(self, previous_state, next_state, input):
+    ''' A new digit has been completed.
+    Add it to the current phone number and update the timestamp.'''
+    self.current_number_ = self.current_number_ + input
+    self.current_number_ts_ = datetime.datetime.now()
 
 
 def main():
