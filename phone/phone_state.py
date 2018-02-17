@@ -20,11 +20,22 @@ class PhoneState:
     Args:
       initial_state: The initial state the state
                      machine should be in.
-      transitions: {(input, previous_state) : next_state}
-      callbacks: {(previous_state, next_state) : [callbacks]}
+      transitions:   {(input, previous_state) : next_state}
+                     Input can be a string of symbols, each of
+                     which will cause the described state
+                     transition.
+      callbacks:     {(previous_state, next_state) : [callbacks]}.
+                     Signature: callback(previous, next, input).                     
     '''
     self.current_state_ = initial_state
-    self.transitions_ = transitions
+    self.transitions_ = {}
+    for t in transitions.items():
+      # Create a separate entry for all permitted inputs.
+      # This effectively disassembles the key of the input
+      # dictionary and creates a separate key for each
+      # possible input symbol.
+      for i in t[0][0]:
+        self.transitions_[(i,t[0][1])] = t[1]
     self.callbacks_ = callbacks    
 
   def ProcessInput(self, input):
@@ -46,7 +57,7 @@ class PhoneState:
 
       callbacks = self.callbacks_[(previous_state, self.current_state_)]
       for c in callbacks:
-        c(previous_state, self.current_state_)
+        c(previous_state, self.current_state_, input)
     except KeyError:
       # Simply fall through if either we don't have a state transition
       # or a list of callbacks. This is not an error.

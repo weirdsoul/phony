@@ -234,30 +234,30 @@ class Phony:
         self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
         self.dial_tone_ = current
 
-  def startDialTone(self, previous_state, next_state):
+  def startDialTone(self, previous_state, next_state, input):
     ''' Start playing the dial tone.'''
     self.processDialTone(True)
 
-  def startDialing(self, previous_state, next_state):
+  def startDialing(self, previous_state, next_state, input):
     self.current_number_ = ''
     self.current_number_ts_ = datetime.datetime.now()
     
-  def startBell(self, previous_state, next_state):
+  def startBell(self, previous_state, next_state, input):
     ''' Start ringing the bell.'''
     self.phone_IO_.stdin.write('s')
 
-  def stopBell(self, previous_state, next_state):
+  def stopBell(self, previous_state, next_state, input):
     ''' Stop ringing the bell.'''
     self.phone_IO_.stdin.write('e')
 
-  def dialNumber(self, previous_state, next_state):
+  def dialNumber(self, previous_state, next_state, input):
     ''' Dial the current number.'''
     logging.info('Dialing outbound number %s' % self.current_number_)
     self.current_call_ = self.core_.invite(
       '{number}@{sip_gateway}'.format(number=self.current_number_,
                                       sip_gateway=self.standard_gateway_))
     
-  def cancelCall(self, previous_state, next_state):
+  def cancelCall(self, previous_state, next_state, input):
     ''' Cancel all active calls.'''
     logging.info('Cancelling active calls.')
     # Just terminate all calls. We don't want any nasty surprises with
@@ -265,7 +265,7 @@ class Phony:
     self.core_.terminate_all_calls()
     self.current_call_ = None
 
-  def acceptCall(self, previous_state, next_state):
+  def acceptCall(self, previous_state, next_state, input):
     ''' Accept incoming call.'''
     logging.info('Accepting incoming call.')
     if self.current_call_:
