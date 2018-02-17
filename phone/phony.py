@@ -64,8 +64,16 @@ class Phony:
        ('c', PS_TALKING): PS_BUSY,
 
        ('o', PS_DIALING): PS_REMOTE_RINGING},
-      # Callbacks triggered by state transitions.
-      {})
+      {(PS_READY, PS_DIAL_TONE): [self.startDialTone],
+       (PS_READY, PS_RINGING): [self.startBell],
+       (PS_DIAL_TONE, PS_DIALING): [self.startDialing],
+       (PS_DIALING, PS_REMOTE_RINGING): [self.dialNumber],
+       (PS_REMOTE_RINGING, PS_READY): [self.cancelCall],
+       (PS_RINGING, PS_TALKING): [self.stopBell,
+                                  self.acceptCall],
+       (PS_RINGING, PS_READY): [self.stopBell],
+       (PS_TALKING, PS_READY): [self.cancelCall]
+      })
     
     logging.basicConfig(level=logging.INFO)
 
@@ -88,19 +96,14 @@ class Phony:
 
       time_since_last_digit = datetime.datetime.now() - self.current_number_ts_
       if (self.current_number_ and
-          time_since_last_digit.total_seconds() > 2 and not self.dialing_):
+          time_since_last_digit.total_seconds() > 2 and
+          not self.digit_in_progress_):
         # Update state machine to say we are done dialing.
         self.phone_state_.ProcessInput('o')
-        logging.info('Dialing outbound number %s' % self.current_number_)
-        self.current_call_ = self.core_.invite(
-          '{number}@{sip_gateway}'.format(number=self.current_number_,
-                                          sip_gateway=self.standard_gateway_))
-          
-        self.current_number_ = ''
-        self.current_number_ts_ = datetime.datetime.now()
 
       # Keep active dial tone going, but don't start a new one.
-      self.processDialTone(False)
+      if self.phone_state_.GetCurrentState() == PS_DIAL_TONE:
+        self.processDialTone(False)
                 
       time.sleep(0.03)
     
@@ -171,13 +174,10 @@ class Phony:
     flags = fcntl.fcntl(self.phone_IO_.stdout.fileno(), fcntl.F_GETFL)
     fcntl.fcntl(self.phone_IO_.stdout, fcntl.F_SETFL, flags | os.O_NONBLOCK)
 
-    # Will track the status of the hook, so we know when a number can
-    # be dialed etc.
-    self.unhooked_ = False
     # Don't play dial tone right now.
     self.dial_tone_ = None
     # Becomes true while the dial is not in its idle position.
-    self.dialing_ = False
+    self.digit_in_progress_ = False
     self.current_number_ = ''
     self.current_number_ts_ = datetime.datetime.now()
 
@@ -190,8 +190,6 @@ class Phony:
       state: The new state.
       message: Message received.
     '''
-
-
     if state in [linphone.CallState.IncomingReceived,
                  linphone.CallState.CallConnected]:
       # Update state machine to say we are seeing an
@@ -204,21 +202,13 @@ class Phony:
       # cancelled the call.
       self.phone_state_.ProcessInput('c')
     
-    # Bell management.
+    # Call object management.
     if state == linphone.CallState.IncomingReceived:
-      # Ring the bell.
-      self.phone_IO_.stdin.write('s')
       # Remember the call, so we can accept or decline it.
       self.current_call_ = call
     elif state in [linphone.CallState.CallEnd,
-                   linphone.CallState.CallError,
-                   linphone.CallState.CallConnected]:
-      # Stop the bell.
-      self.phone_IO_.stdin.write('e')
-
-    # Call object management.
-    if state in [linphone.CallState.CallEnd,
                  linphone.CallState.CallError]:
+      # Clear the call object. We no longer need it.
       self.current_call_ = None
   
 
@@ -226,7 +216,7 @@ class Phony:
     # Just forward to the appropriate method of the logging
     # framework.
     method = getattr(logging, level)
-    # method(msg)
+    method(msg)
 
   def signal_handler(self, signal, frame):
     self.core_.terminate_all_calls()
@@ -244,42 +234,61 @@ class Phony:
         self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
         self.dial_tone_ = current
 
+  def startDialTone(self, previous_state, next_state):
+    ''' Start playing the dial tone.'''
+    self.processDialTone(True)
+
+  def startDialing(self, previous_state, next_state):
+    self.current_number_ = ''
+    self.current_number_ts_ = datetime.datetime.now()
+    
+  def startBell(self, previous_state, next_state):
+    ''' Start ringing the bell.'''
+    self.phone_IO_.stdin.write('s')
+
+  def stopBell(self, previous_state, next_state):
+    ''' Stop ringing the bell.'''
+    self.phone_IO_.stdin.write('e')
+
+  def dialNumber(self, previous_state, next_state):
+    ''' Dial the current number.'''
+    logging.info('Dialing outbound number %s' % self.current_number_)
+    self.current_call_ = self.core_.invite(
+      '{number}@{sip_gateway}'.format(number=self.current_number_,
+                                      sip_gateway=self.standard_gateway_))
+    
+  def cancelCall(self, previous_state, next_state):
+    ''' Cancel all active calls.'''
+    logging.info('Cancelling active calls.')
+    # Just terminate all calls. We don't want any nasty surprises with
+    # connections being kept open in the background.    
+    self.core_.terminate_all_calls()
+    self.current_call_ = None
+
+  def acceptCall(self, previous_state, next_state):
+    ''' Accept incoming call.'''
+    logging.info('Accepting incoming call.')
+    if self.current_call_:
+      # An incoming call is already waiting. Accept it.
+      params = self.core_.create_call_params(self.current_call_)
+      self.core_.accept_call_with_params(self.current_call_, params)
+    else:
+      logging.warning('acceptCall in wrong state ignored.')      
+
   def processUserInput(self, input):
     # Keep the state machine up to date.
     self.phone_state_.ProcessInput(input)
-    if input == 'l':
-      self.unhooked_ = True      
-      if self.current_call_:
-        # An incoming call is already waiting. Accept it.
-        params = self.core_.create_call_params(self.current_call_)
-        self.core_.accept_call_with_params(self.current_call_, params)
-      else:        
-        # No incoming call. Play dial tone.
-        self.processDialTone(True)
-      
-    elif input == 'd':
-      self.unhooked_ = False
-      # Stop any dial tone that may be playing.
-      self.dial_tone_ = None
-      # Reset any (partial) phone number that may have been dialed.
-      self.current_number_ = ''
-      self.current_number_ts_ = datetime.datetime.now()
-      if self.current_call_:
-        # Dropping the fork will terminate all calls. We don't want
-        # any nasty surprises with connections being kept open in the
-        # background.
-        self.core_.terminate_all_calls()
 
-    elif input == 's':
-      self.dialing_ = True
-      # Stop any dial tone that may be playing.
-      self.dial_tone_ = None
-
+    # We don't model this as an extra state in the state machine,
+    # because this would really make the state machine more
+    # complex for no good reason. 
+    if input == 's':
+      self.digit_in_progress_ = True
     elif input == 'e':
-      self.dialing_ = False
+      self.digit_in_progress_ = False
 
-    elif str.isdigit(input) and self.unhooked_:
-      # A new digit has been completed and the phone is unhooked.
+    elif str.isdigit(input):
+      # A new digit has been completed.
       # Add it to the current phone number and update the timestamp.
       self.current_number_ = self.current_number_ + input
       self.current_number_ts_ = datetime.datetime.now()
