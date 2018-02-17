@@ -4,6 +4,8 @@
 # the linphone Python wrapper library and communicates
 # with the hardware through a subprocess.
 
+from __future__ import division
+
 import ConfigParser
 import datetime
 import fcntl
@@ -76,14 +78,20 @@ class Phony:
        ('o', PS_DIALING): PS_REMOTE_RINGING},
       {(PS_READY, PS_DIAL_TONE): [self.startDialTone],
        (PS_READY, PS_RINGING): [self.startBell],
+       
        (PS_DIAL_TONE, PS_DIAL_MOVING): [self.startDialing],
        (PS_DIAL_MOVING, PS_DIALING): [self.processDigit],
        (PS_DIALING, PS_REMOTE_RINGING): [self.dialNumber],
+       
        (PS_REMOTE_RINGING, PS_READY): [self.cancelCall],
+       (PS_REMOTE_RINGING, PS_BUSY): [self.startBusyTone],
+       
        (PS_RINGING, PS_TALKING): [self.stopBell,
                                   self.acceptCall],
        (PS_RINGING, PS_READY): [self.stopBell],
-       (PS_TALKING, PS_READY): [self.cancelCall]
+       
+       (PS_TALKING, PS_READY): [self.cancelCall],
+       (PS_TALKING, PS_BUSY): [self.startBusyTone]
       })
     
     logging.basicConfig(level=logging.INFO)
@@ -115,9 +123,9 @@ class Phony:
           # Update state machine to say we are done dialing.
           self.phone_state_.ProcessInput('o')
 
-      elif self.phone_state_.GetCurrentState() == PS_DIAL_TONE:
+      elif self.phone_state_.GetCurrentState() in [PS_DIAL_TONE, PS_BUSY]:
         # Keep active dial tone going, but don't start a new one.
-        self.processDialTone(False)
+        self.processTone()
                 
       time.sleep(0.03)
     
@@ -230,21 +238,33 @@ class Phony:
     self.phone_IO_.send_signal(signal)
     self.quit_ = True
 
-  def processDialTone(self, start_playing):
-    current = datetime.datetime.now()
-    if start_playing:
-      self.dial_tone_ = current
+  def processTone(self, tone_file=None):
+    ''' Process a tone (e.g. dial tone, busy tone).
 
-    diff = current - self.dial_tone_
-    # TODO(aeckleder): This is very specific to the dial tone we use.
-    # I'm sure we can do better.
-    if start_playing or diff.total_seconds() > 1:
-        self.core_.play_local('/home/pi/coding/phone/dial_tone.wav')
-        self.dial_tone_ = current
+    Args:
+      tone_file: Tone to play. Can be None for repeated
+                 calls to repeat the tone. Must be a 16 bit
+                 8kHz Mono WAV file.
+    '''
+    current = datetime.datetime.now()
+    if tone_file:
+      self.tone_start_ = current
+      self.tone_file_ = tone_file
+      s = os.stat(tone_file)
+      self.tone_duration_ = s.st_size / (8000 * 2)
+
+    diff = current - self.tone_start_
+    if tone_file or diff.total_seconds() > self.tone_duration_:
+        self.core_.play_local(self.tone_file_)
+        self.tone_start_ = current
 
   def startDialTone(self, previous_state, next_state, input):
     ''' Start playing the dial tone.'''
-    self.processDialTone(True)
+    self.processTone('/home/pi/coding/phone/dial_tone.wav')
+
+  def startBusyTone(self, previous_state, next_state, input):
+    ''' Start playing the busy tone.'''
+    self.processTone('/home/pi/coding/phone/busy_tone.wav')
 
   def startDialing(self, previous_state, next_state, input):
     self.current_number_ = ''
