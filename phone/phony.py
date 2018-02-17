@@ -68,6 +68,8 @@ class Phony:
        ('1234567890', # Any digit marking the end of a dial cycle.
         PS_DIAL_MOVING): PS_DIALING, # Dial produced a digit.
 
+       ('p', PS_DIAL_MOVING): PS_DIAL_MOVING, # Pulse generator.
+
        ('a', PS_READY): PS_RINGING,  # Incoming call.
        ('a', PS_REMOTE_RINGING): PS_TALKING,
 
@@ -81,6 +83,7 @@ class Phony:
        
        (PS_DIAL_TONE, PS_DIAL_MOVING): [self.startDialing],
        (PS_DIAL_MOVING, PS_DIALING): [self.processDigit],
+       (PS_DIAL_MOVING, PS_DIAL_MOVING): [self.playPulse],
        (PS_DIALING, PS_REMOTE_RINGING): [self.dialNumber],
        
        (PS_REMOTE_RINGING, PS_READY): [self.cancelCall],
@@ -265,6 +268,10 @@ class Phony:
   def startBusyTone(self, previous_state, next_state, input):
     ''' Start playing the busy tone.'''
     self.processTone('/home/pi/coding/phone/busy_tone.wav')
+
+  def playPulse(self, previous_state, next_state, input):
+    ''' Play a single dialing pulse.'''
+    self.core_.play_local('/home/pi/coding/phone/pulse.wav')    
 
   def startDialing(self, previous_state, next_state, input):
     self.current_number_ = ''
