@@ -22,6 +22,10 @@ import time
 # until a number is presumed to be complete.
 DIAL_TIMEOUT = 2
 
+# Use the ring back sound from linphone.
+# TODO(aeckleder): Make this configurable.
+RING_BACK = '/usr/local/lib/python2.7/dist-packages/linphone/share/sounds/linphone/ringback.wav'
+
 # The following defines phone states:
 PS_READY = 0           # The phone is idle and ready to be used.
 PS_DIAL_TONE = 1       # The phone is ready to dial (dial tone).
@@ -150,8 +154,8 @@ class Phony:
 
     # Manually configure ringback tone, so we can be sure that
     # it is found.
-    self.core_.remote_ringback_tone = '/home/pi/coding/phone/remote_ringback.wav'
-    self.core_.ringback = '/home/pi/coding/phone/ringback.wav'
+    self.core_.remote_ringback_tone = RING_BACK
+    self.core_.ringback = RING_BACK
     
     self.standard_gateway_ = ''
     for provider in self.config_.sections():
