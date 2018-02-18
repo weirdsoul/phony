@@ -212,6 +212,15 @@ class Phony:
       state: The new state.
       message: Message received.
     '''
+    if (state == linphone.CallState.IncomingReceived and
+        self.phone_state_.GetCurrentState() != PS_READY):
+      # Incoming call, but we are not in state ready.
+      # Tell the other side that we are busy and otherwise
+      # ignore the incoming call.
+      logging.info('Declining incoming call while busy.')      
+      self.core_.decline_call(call, linphone.Reason.Busy)
+      return
+      
     if state in [linphone.CallState.IncomingReceived,
                  linphone.CallState.CallConnected]:
       # Update state machine to say we are seeing an
