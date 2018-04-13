@@ -156,7 +156,8 @@ class Phony:
     # it is found.
     self.core_.remote_ringback_tone = RING_BACK
     self.core_.ringback = RING_BACK
-    
+
+    logging.info('Setting up SIP configuration.')
     self.standard_gateway_ = ''
     for provider in self.config_.sections():
       username = self.config_.get(provider, 'Username')
@@ -177,6 +178,10 @@ class Phony:
       proxy_config.register_enabled = True
       self.core_.add_proxy_config(proxy_config)
 
+      logging.info('Registering {username}@{sip_gateway}'.format(
+        username=username,
+        sip_gateway=sip_gateway))
+                                
       if is_default and not self.standard_gateway_:
         # If we have a default, use it. Otherwise, just pick the first one.
         self.core_.default_proxy_config = proxy_config
@@ -276,15 +281,15 @@ class Phony:
 
   def startDialTone(self, previous_state, next_state, input):
     ''' Start playing the dial tone.'''
-    self.processTone('/home/pi/coding/phone/dial_tone.wav')
+    self.processTone('/home/pi/coding/phony/phone/dial_tone.wav')
 
   def startBusyTone(self, previous_state, next_state, input):
     ''' Start playing the busy tone.'''
-    self.processTone('/home/pi/coding/phone/busy_tone.wav')
+    self.processTone('/home/pi/coding/phony/phone/busy_tone.wav')
 
   def playPulse(self, previous_state, next_state, input):
     ''' Play a single dialing pulse.'''
-    self.core_.play_local('/home/pi/coding/phone/pulse.wav')    
+    self.core_.play_local('/home/pi/coding/phony/phone/pulse.wav')    
 
   def startDialing(self, previous_state, next_state, input):
     self.current_number_ = ''

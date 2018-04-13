@@ -12,7 +12,7 @@
 case "$1" in
     start)
 	echo "phony is starting"
-	nohup /home/pi/coding/phone/phony.py >/var/log/phony.log 2>&1 &
+	nohup /home/pi/coding/phony/phone/phony.py >/var/log/phony.log 2>&1 &
 	;;
     stop)
 	echo "phony is stopping"
