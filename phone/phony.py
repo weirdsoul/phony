@@ -178,11 +178,12 @@ class Phony:
       proxy_config.register_enabled = True
       self.core_.add_proxy_config(proxy_config)
 
-      logging.info('Registering {username}@{sip_gateway}'.format(
+      logging.info('Registering {username}@{sip_gateway},default={is_default}'.format(
         username=username,
-        sip_gateway=sip_gateway))
-                                
-      if is_default and not self.standard_gateway_:
+        sip_gateway=sip_gateway,
+        is_default=is_default))
+   
+      if is_default or not self.standard_gateway_:
         # If we have a default, use it. Otherwise, just pick the first one.
         self.core_.default_proxy_config = proxy_config
         self.standard_gateway_ = sip_gateway
