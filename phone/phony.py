@@ -159,8 +159,14 @@ class Phony:
 
     logging.info('Setting up SIP configuration.')
     self.standard_gateway_ = ''
+    # We keep track of usernames configured for the various gateways,
+    # and accept incoming calls only if there is a match.
+    self.accepted_usernames_ = set()
+
     for provider in self.config_.sections():
       username = self.config_.get(provider, 'Username')
+      self.accepted_usernames_.add(username)
+
       password = self.config_.get(provider, 'Password')
       sip_gateway = self.config_.get(provider, 'Gateway')
       is_default = False
@@ -226,7 +232,18 @@ class Phony:
       logging.info('Declining incoming call while busy.')      
       self.core_.decline_call(call, linphone.Reason.Busy)
       return
-      
+
+    if (state == linphone.CallState.IncomingReceived and
+        not call.call_log.to_address.username in
+        self.accepted_usernames_):
+      # Incoming call, but not for one of the whitelisted
+      # usernames. Ignore the incoming call.
+      logging.info('Declining incoming call, unknown target %s' %
+                   call.call_log.to_address.username)
+      self.core_.decline_call(call, linphone.Reason.Busy)
+      return
+
+
     if state in [linphone.CallState.IncomingReceived,
                  linphone.CallState.CallConnected]:
       # Update state machine to say we are seeing an
