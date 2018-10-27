@@ -35,6 +35,7 @@ PS_REMOTE_RINGING = 4  # The remote side is ringing.
 PS_BUSY = 5            # The phone is signalling busy / error.
 PS_RINGING = 6         # The phone is ringing.
 PS_TALKING = 7         # The phone is connected to the remote.
+PS_PLAYBACK = 8        # The phone is playing back a recorded message.
 
 # Note that in addition to the symbols produced by phone_io.py,
 # we introduce a few more symbols to drive our state machine.
@@ -43,6 +44,7 @@ PS_TALKING = 7         # The phone is connected to the remote.
 #  'a': Remote side calling / accepting to talk.
 #  'c': Remote side cancelling / rejecting the call.
 #  'o': Dialing complete. Triggered when INVITE is sent.
+#  'r': Playback of a recorded message.
 
 class Phony:
   def __init__(self, config):
@@ -65,6 +67,7 @@ class Phony:
        ('d', PS_REMOTE_RINGING): PS_READY,
        ('d', PS_BUSY): PS_READY,
        ('d', PS_TALKING): PS_READY,
+       ('d', PS_PLAYBACK): PS_READY,
 
        ('s', PS_DIAL_TONE): PS_DIAL_MOVING, # Dial moved from idle.
        ('s', PS_DIALING): PS_DIAL_MOVING,
@@ -81,7 +84,9 @@ class Phony:
        ('c', PS_RINGING): PS_READY,
        ('c', PS_TALKING): PS_BUSY,
 
-       ('o', PS_DIALING): PS_REMOTE_RINGING},
+       ('o', PS_DIALING): PS_REMOTE_RINGING,
+                                               
+       ('r', PS_DIALING): PS_PLAYBACK},
       {(PS_READY, PS_DIAL_TONE): [self.startDialTone],
        (PS_READY, PS_RINGING): [self.startBell],
        
@@ -89,6 +94,7 @@ class Phony:
        (PS_DIAL_MOVING, PS_DIALING): [self.processDigit],
        (PS_DIAL_MOVING, PS_DIAL_MOVING): [self.playPulse],
        (PS_DIALING, PS_REMOTE_RINGING): [self.dialNumber],
+       (PS_DIALING, PS_PLAYBACK): [self.playRecording],
        
        (PS_REMOTE_RINGING, PS_READY): [self.cancelCall],
        (PS_REMOTE_RINGING, PS_BUSY): [self.startBusyTone],
@@ -127,8 +133,12 @@ class Phony:
       if self.phone_state_.GetCurrentState() == PS_DIALING:
         time_since_last_digit = datetime.datetime.now() - self.current_number_ts_
         if time_since_last_digit.total_seconds() > DIAL_TIMEOUT:
-          # Update state machine to say we are done dialing.
-          self.phone_state_.ProcessInput('o')
+          if self.current_number_ in self.recorded_messages_:
+            # This is a special number. Play a record.
+            self.phone_state_.ProcessInput('r')
+          else:
+            # Update state machine to say we are done dialing.
+            self.phone_state_.ProcessInput('o')
 
       elif self.phone_state_.GetCurrentState() in [PS_DIAL_TONE, PS_BUSY]:
         # Keep active dial tone going, but don't start a new one.
@@ -201,6 +211,8 @@ class Phony:
     # No prospective call yet.
     self.current_call_ = None
 
+    # Setup recorded messages.
+    self.recorded_messages_ = { '666150884': '/home/pi/coding/phony/phone/phony_dungeon.wav'}
 
   def initPhoneIO(self):
     abs_path = os.path.abspath(sys.argv[0])
@@ -327,6 +339,13 @@ class Phony:
     self.current_call_ = self.core_.invite(
       '{number}@{sip_gateway}'.format(number=self.current_number_,
                                       sip_gateway=self.standard_gateway_))
+
+  def playRecording(self, previous_state, next_state, input):
+    ''' Play a recording according to the current number.'''
+    logging.info('Playing recording for number {number}: {recording}'.format(
+      number=self.current_number_, recording=self.recorded_messages_[self.current_number_]))
+    # Play the recording only once.
+    self.core_.play_local(self.recorded_messages_[self.current_number_])
     
   def cancelCall(self, previous_state, next_state, input):
     ''' Cancel all active calls.'''
