@@ -174,7 +174,12 @@ class Phony:
         is_default = self.config_.getboolean(provider, 'default')
       except:
         pass
-        
+      user_id = None
+      try:
+        user_id = self.config_.get(provider, 'Userid')
+      except:
+        pass
+
       proxy_config = self.core_.create_proxy_config()
       proxy_config.identity_address = self.core_.create_address(
       'sip:{username}@{sip_gateway}'.format(username=username,
@@ -194,7 +199,7 @@ class Phony:
         self.core_.default_proxy_config = proxy_config
         self.standard_gateway_ = sip_gateway
 
-      auth_info = self.core_.create_auth_info(username, None, password,
+      auth_info = self.core_.create_auth_info(username, user_id, password,
                                               None, None, sip_gateway)
       self.core_.add_auth_info(auth_info)
 
